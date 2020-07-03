@@ -1,0 +1,13 @@
+barutils
+========
+    small programs to use with lemonbar
+
+usage
+-----
+    $ make
+    $ bin/$program
+
+depends on
+----------
+    * gcc
+    * make
