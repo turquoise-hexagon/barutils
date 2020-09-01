@@ -1,38 +1,59 @@
-#include <err.h>
-#include <libgen.h>
 #include <errno.h>
+#include <libgen.h>
 #include <limits.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdnoreturn.h>
 #include <string.h>
 #include <unistd.h>
-#include <stdbool.h>
+
+static unsigned delay = 5;
+static char path[PATH_MAX] = "/sys/class/power_supply/BAT0/";
 
 static noreturn void
 usage(char *name)
 {
     fprintf(
         stderr,
-        "usage : %s [-s <number>] [-p <string>]\n\n"
+        "usage : %s [-p <path>] [-r <number>]\n"
+        "\n"
         "options :\n"
-        "    -p <string>    set path to brightness directory to <string> (default : /sys/class/power_supply/BAT0)\n"
-        "    -s <number>    set delay between refreshes to <number> (default : 5)\n",
-        basename(name));
+        "    -p <path>      set path to brightness files to <path> (default : %s)\n"
+        "    -r <number>    set delay between refreshes to <number> (default : %u)\n",
+        basename(name),
+        path,
+        delay);
 
     exit(1);
 }
 
-/*
- * helper functions
- */
+static bool
+convert_to_number(const char *str, unsigned *num)
+{
+    errno = 0;
+
+    char *ptr;
+    long tmp;
+
+    if ((tmp = strtol(str, &ptr, 10)) < 0 || errno != 0 || *ptr != 0)
+        return 0;
+
+    *num = tmp;
+
+    return 1;
+}
+
 static FILE *
 open_file(const char *path, const char *mode)
 {
     FILE *file;
 
-    if ((file = fopen(path, mode)) == NULL)
-        errx(1, "failed to open '%s'", path);
+    if (! (file = fopen(path, mode))) {
+        fprintf(stderr, "error : failed to open '%s'\n", path);
+
+        exit(1);
+    }
 
     return file;
 }
@@ -40,94 +61,99 @@ open_file(const char *path, const char *mode)
 static void
 close_file(const char *path, FILE *file)
 {
-    if (fclose(file) == EOF)
-        errx(1, "faile to close '%s'", path);
+    if (fclose(file) != 0) {
+        fprintf(stderr, "error : failed to close '%s'\n", path);
+
+        exit(1);
+    }
 }
 
 static void
-get_content(const char *path, char *content)
+get_value_from_file(const char *path, char output[LINE_MAX])
 {
     FILE *file;
 
     file = open_file(path, "r");
 
-    if (fgets(content, LINE_MAX, file) == NULL)
-        errx(1, "failed to get content from '%s'", path);
+    if (! (fgets(output, LINE_MAX, file))) {
+        fprintf(stderr, "error : failed to get content from '%s'\n", path);
 
-    /* fix string */
-    content[strnlen(content, LINE_MAX) - 1] = 0;
+        exit(1);
+    }
 
     close_file(path, file);
+
+    /* fix string */
+    output[strnlen(output, LINE_MAX) - 1] = 0;
 }
 
-static unsigned
-convert_to_number(const char *str)
-{
-    errno = 0;
-
-    char *ptr;
-    long number;
-
-    if ((number = strtol(str, &ptr, 10)) < 0 || errno != 0 || *ptr != 0)
-        errx(1, "'%s' isn't a valid positive integer", str);
-
-    return (unsigned)number;
-}
-
-/*
- * main functions
- */
 int
 main(int argc, char **argv)
 {
-    /* default values */
-    unsigned delay = 5;
-    char path[PATH_MAX] = "/sys/class/power_supply/BAT0";
-
-    /* argument parsing */
-    for (int arg; (arg = getopt(argc, argv, ":s:p:")) != -1;)
+    for (int arg; (arg = getopt(argc, argv, ":p:r:")) != -1;)
         switch (arg) {
-            case 's': delay = convert_to_number(optarg);   break;
-            case 'p': strncpy(path, optarg, PATH_MAX - 1); break;
+            case 'p':
+                strncpy(path, optarg, PATH_MAX - 1);
+
+                break;
+            case 'r':;
+                if (! convert_to_number(optarg, &delay)) {
+                    fprintf(stderr, "error : '%s' isn't a valid delay\n", optarg);
+
+                    exit(1);
+                }
+
+                break;
             default :
                 usage(argv[0]);
         }
 
-    if (optind < argc)
-        usage(argv[0]);
-
-    /* obtain path to files */
     char status_path[PATH_MAX]   = {0};
     char capacity_path[PATH_MAX] = {0};
 
-    if (snprintf(status_path, PATH_MAX, "%s/status", path) < 0)
-        errx(1, "failed to build path to battery status file");
+    if (snprintf(status_path, PATH_MAX, "%sstatus", path) < 0) {
+        fprintf(stderr, "error : failed to build path to status file\n");
 
-    if (snprintf(capacity_path, PATH_MAX, "%s/capacity", path) < 0)
-        errx(1, "failed to build path to battery capacity file");
+        exit(1);
+    }
 
-    /* main loop */
+    if (snprintf(capacity_path, PATH_MAX, "%scapacity", path) < 0) {
+        fprintf(stderr, "error : failed to build path to capacity file\n");
+
+        exit(1);
+    }
+
     bool flag = 0;
-    char output[2][LINE_MAX] = {{0}};
+    char output[2][1024] = {{0}};
 
     char status[LINE_MAX]   = {0};
     char capacity[LINE_MAX] = {0};
 
     for (;;) {
-        get_content(status_path,     status);
-        get_content(capacity_path, capacity);
+        get_value_from_file(status_path,   status);
+        get_value_from_file(capacity_path, capacity);
 
-        if (snprintf(output[flag], LINE_MAX, "%u %s",
-               convert_to_number(capacity), status) < 0)
-            errx(1, "failed to store command output");
+        unsigned tmp;
 
-        /* don't print anything if there was no updates */
-        if (strncmp(output[flag], output[!flag], LINE_MAX) != 0) {
+        if (! convert_to_number(capacity, &tmp)) {
+            fprintf(stderr, "error : '%s' invalid capacity\n", capacity);
+
+            exit(1);
+        }
+
+        if (snprintf(output[flag], 1024, "%u %s", tmp, status) < 0) {
+            fprintf(stderr, "error : failed to store output in buffer\n");
+
+            exit(1);
+        }
+
+        /* only output if content has changed */
+        if (strncmp(output[flag], output[!flag], 1024)) {
             puts(output[flag]);
             fflush(stdout);
             flag ^= 1;
         }
-    
+
         sleep(delay);
     }
 }
