@@ -9,7 +9,7 @@
 #include <unistd.h>
 
 static unsigned delay = 5;
-static char path[PATH_MAX] = "/sys/class/power_supply/BAT0/";
+static char sys_path[PATH_MAX] = "/sys/class/power_supply/BAT0/";
 
 static noreturn void
 usage(char *name)
@@ -22,7 +22,7 @@ usage(char *name)
         "    -p <path>      set path to brightness files to <path> (default : %s)\n"
         "    -r <number>    set delay between refreshes to <number> (default : %u)\n",
         basename(name),
-        path,
+        sys_path,
         delay);
 
     exit(1);
@@ -39,7 +39,7 @@ convert_to_number(const char *str, unsigned *num)
     if ((tmp = strtol(str, &ptr, 10)) < 0 || errno != 0 || *ptr != 0)
         return 0;
 
-    *num = tmp;
+    *num = (unsigned)tmp;
 
     return 1;
 }
@@ -93,7 +93,7 @@ main(int argc, char **argv)
     for (int arg; (arg = getopt(argc, argv, ":p:r:")) != -1;)
         switch (arg) {
             case 'p':
-                strncpy(path, optarg, PATH_MAX - 1);
+                strncpy(sys_path, optarg, PATH_MAX - 1);
 
                 break;
             case 'r':;
@@ -111,13 +111,13 @@ main(int argc, char **argv)
     char status_path[PATH_MAX]   = {0};
     char capacity_path[PATH_MAX] = {0};
 
-    if (snprintf(status_path, PATH_MAX, "%sstatus", path) < 0) {
+    if (snprintf(status_path, PATH_MAX, "%sstatus", sys_path) < 0) {
         fprintf(stderr, "error : failed to build path to status file\n");
 
         exit(1);
     }
 
-    if (snprintf(capacity_path, PATH_MAX, "%scapacity", path) < 0) {
+    if (snprintf(capacity_path, PATH_MAX, "%scapacity", sys_path) < 0) {
         fprintf(stderr, "error : failed to build path to capacity file\n");
 
         exit(1);
