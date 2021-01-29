@@ -12,21 +12,25 @@
 static unsigned delay = 5;
 static char format[LINE_MAX] = "%A %R";
 
+#define ERROR(code, ...) {        \
+    fprintf(stderr, __VA_ARGS__); \
+                                  \
+    exit(code);                   \
+}
+
 static noreturn void
-usage(char *name)
+usage(const char *name)
 {
-    fprintf(
-        stderr,
+    ERROR(
+        1,
         "usage : %s [-f <string>] [-r <number>]\n"
         "\n"
         "options :\n"
         "    -f <string>    set format string to <string> (default : %s)\n"
         "    -r <number>    set delay between refreshes to <number> (default : %u)\n",
-        basename(name),
+        name,
         format,
-        delay);
-
-    exit(1);
+        delay)
 }
 
 static unsigned
@@ -38,30 +42,16 @@ convert_to_number(const char *str)
     {
         char *ptr;
 
-        if ((num = strtol(str, &ptr, 10)) < 0 || errno != 0 || *ptr != 0) {
-            fprintf(stderr, "error : '%s' isn't a valid delay\n", str);
-
-            exit(1);
-        }
+        if ((num = strtol(str, &ptr, 10)) < 0 || errno != 0 || *ptr != 0)
+            ERROR(1, "error : '%s' isn't a valid delay\n", str)
     }
 
     return (unsigned)num;
 }
 
-int
-main(int argc, char **argv)
+static noreturn void
+subscribe(void)
 {
-    for (int arg; (arg = getopt(argc, argv, ":f:r:")) != -1;)
-        switch (arg) {
-            case 'f': delay = convert_to_number(optarg);     break;
-            case 'r': strncpy(format, optarg, LINE_MAX - 1); break;
-            default :
-                usage(argv[0]);
-        }
-
-    if (optind < argc)
-        usage(argv[0]);
-
     bool flag = 0;
     char output[2][1024] = {{0}};
 
@@ -72,11 +62,8 @@ main(int argc, char **argv)
         time_value = time(0);
         time_struct = localtime(&time_value);
 
-        if (! strftime(output[flag], 1024, format, time_struct)) {
-            fprintf(stderr, "error : failed to format current time\n");
-
-            exit(1);
-        }
+        if (! strftime(output[flag], 1024, format, time_struct))
+            ERROR(1, "error : failed to format current time\n")
 
         /* only output if content has changed */
         if (strncmp(output[flag], output[!flag], 1024)) {
@@ -87,4 +74,31 @@ main(int argc, char **argv)
 
         sleep(delay);
     }
+}
+
+int
+main(int argc, char **argv)
+{
+    const char *name = basename(argv[0]);
+
+    {
+        int arg;
+
+        while ((arg = getopt(argc, argv, ":f:r:")) != -1)
+            switch (arg) {
+                case 'f':
+                    delay = convert_to_number(optarg);
+                    break;
+                case 'r':
+                    strncpy(format, optarg, LINE_MAX - 1);
+                    break;
+                default :
+                    usage(name);
+            }
+    }
+
+    if (optind < argc)
+        usage(name);
+
+    subscribe();
 }
