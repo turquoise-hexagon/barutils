@@ -104,6 +104,13 @@ close_file(const char *path, FILE *file)
         ERROR(1, "error : failed to close '%s'\n", path)
 }
 
+static void
+build_path(char *dest, const char *path, const char *dir, const char *file, size_t size)
+{
+    if (snprintf(dest, size, "%s/%s/%s", path, dir, file) < 0)
+        ERROR(1, "error : failed to build path '%s/%s/%s'\n", path, dir, file)
+}
+
 static struct battery *
 get_batteries(size_t *size)
 {
@@ -124,13 +131,8 @@ get_batteries(size_t *size)
             if (strncmp(ent->d_name, "BAT", 3 * sizeof(*ent->d_name)) == 0) {
                 strncpy(batteries[assigned].name, ent->d_name, NAME_MAX + 1);
 
-                if (snprintf(batteries[assigned].capacity_path, PATH_MAX,
-                    "%s/%s/capacity", PATH, ent->d_name) < 0)
-                    ERROR(1, "error : failed to build path to '%s/%s/capacity'\n", PATH, ent->d_name)
-
-                if (snprintf(batteries[assigned].status_path, PATH_MAX,
-                    "/%s/%s/status", PATH, ent->d_name) < 0)
-                    ERROR(1, "error : failed to build path to '%s/%s/status'\n", PATH, ent->d_name)
+                build_path(batteries[assigned].capacity_path, PATH, ent->d_name, "capacity", PATH_MAX);
+                build_path(  batteries[assigned].status_path, PATH, ent->d_name,   "status", PATH_MAX);
 
                 batteries[assigned].flag = 0;
 
