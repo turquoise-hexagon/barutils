@@ -111,6 +111,22 @@ build_path(char *dest, const char *path, const char *dir, const char *file, size
         ERROR(1, "error : failed to build path to '%s/%s/%s'\n", path, dir, file)
 }
 
+static void
+get_content(const char *path, char *dest, size_t size)
+{
+    FILE *file;
+
+    file = open_file(path, "r");
+
+    if (! fgets(dest, (int)size, file))
+        ERROR(1, "error : failed to get content from '%s'\n", path)
+
+    /* fix string */
+    dest[strnlen(dest, size) - 1] = 0;
+
+    close_file(path, file);
+}
+
 static struct battery *
 get_batteries(size_t *size)
 {
@@ -145,22 +161,6 @@ get_batteries(size_t *size)
     }
 
     return batteries;
-}
-
-static void
-get_content(const char *path, char *dest, size_t size)
-{
-    FILE *file;
-
-    file = open_file(path, "r");
-
-    if (! fgets(dest, (int)size, file))
-        ERROR(1, "error : failed to get content from '%s'\n", path)
-
-    /* fix string */
-    dest[strnlen(dest, size) - 1] = 0;
-
-    close_file(path, file);
 }
 
 static noreturn void
