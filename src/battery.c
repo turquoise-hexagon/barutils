@@ -146,17 +146,17 @@ get_batteries(size_t *size)
 }
 
 static void
-get_content(const char *path, char *output)
+get_content(const char *path, char *output, size_t size)
 {
     FILE *file;
 
     file = open_file(path, "r");
 
-    if (! fgets(output, OUTPUT_MAX, file))
+    if (! fgets(output, (int)size, file))
         ERROR(1, "error : failed to get content from '%s'\n", path)
 
     /* fix string */
-    output[strnlen(output, OUTPUT_MAX) - 1] = 0;
+    output[strnlen(output, size) - 1] = 0;
 
     close_file(path, file);
 }
@@ -164,13 +164,13 @@ get_content(const char *path, char *output)
 static noreturn void
 subscribe(struct battery *batteries, size_t size)
 {
-    char   status[OUTPUT_MAX] = {0};
-    char capacity[OUTPUT_MAX] = {0};
+    char   status[OUTPUT_MAX / 2] = {0};
+    char capacity[OUTPUT_MAX / 2] = {0};
 
     for (;;) {
         for (size_t i = 0; i < size; ++i) {
-            get_content(batteries[i].capacity_path, capacity);
-            get_content(batteries[i].status_path, status);
+            get_content(batteries[i].capacity_path, capacity, OUTPUT_MAX / 2);
+            get_content(  batteries[i].status_path,   status, OUTPUT_MAX / 2);
 
             if (snprintf(batteries[i].output[batteries[i].flag], OUTPUT_MAX, "%s %s", status, capacity) < 0)
                 ERROR(1, "error : failed to build output\n")
