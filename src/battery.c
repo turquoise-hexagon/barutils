@@ -34,7 +34,7 @@ struct battery {
 static noreturn void
 usage(const char *name)
 {
-    ERROR(1, "usage ; %s [-r <delay> (default : %u)]\n", name, delay)
+    ERROR(1, "usage : %s [-r <delay> (default : %u)]\n", name, delay)
 }
 
 static void *
