@@ -164,13 +164,13 @@ get_content(const char *path, char *output, size_t size)
 static noreturn void
 subscribe(struct battery *batteries, size_t size)
 {
-    char   status[OUTPUT_MAX / 2] = {0};
-    char capacity[OUTPUT_MAX / 2] = {0};
+    char   status[OUTPUT_MAX] = {0};
+    char capacity[OUTPUT_MAX] = {0};
 
     for (;;) {
         for (size_t i = 0; i < size; ++i) {
-            get_content(batteries[i].capacity_path, capacity, OUTPUT_MAX / 2);
-            get_content(  batteries[i].status_path,   status, OUTPUT_MAX / 2);
+            get_content(batteries[i].capacity_path, capacity, OUTPUT_MAX);
+            get_content(  batteries[i].status_path,   status, OUTPUT_MAX);
 
             if (snprintf(batteries[i].output[batteries[i].flag], OUTPUT_MAX, "%s %s", status, capacity) < 0)
                 ERROR(1, "error : failed to build output\n")
