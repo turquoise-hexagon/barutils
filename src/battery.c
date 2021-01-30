@@ -108,7 +108,7 @@ static void
 build_path(char *dest, const char *path, const char *dir, const char *file, size_t size)
 {
     if (snprintf(dest, size, "%s/%s/%s", path, dir, file) < 0)
-        ERROR(1, "error : failed to build path '%s/%s/%s'\n", path, dir, file)
+        ERROR(1, "error : failed to build path to '%s/%s/%s'\n", path, dir, file)
 }
 
 static struct battery *
@@ -148,17 +148,17 @@ get_batteries(size_t *size)
 }
 
 static void
-get_content(const char *path, char *output, size_t size)
+get_content(const char *path, char *dest, size_t size)
 {
     FILE *file;
 
     file = open_file(path, "r");
 
-    if (! fgets(output, (int)size, file))
+    if (! fgets(dest, (int)size, file))
         ERROR(1, "error : failed to get content from '%s'\n", path)
 
     /* fix string */
-    output[strnlen(output, size) - 1] = 0;
+    dest[strnlen(dest, size) - 1] = 0;
 
     close_file(path, file);
 }
