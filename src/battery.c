@@ -22,7 +22,7 @@ static const char PATH[PATH_MAX] = "/sys/class/power_supply";
 }
 
 struct battery {
-    char name[NAME_MAX + 1];
+    char name[NAME_MAX];
 
     char capacity_path[PATH_MAX];
     char   status_path[PATH_MAX];
@@ -32,9 +32,9 @@ struct battery {
 };
 
 static noreturn void
-usage(const char *name)
+usage(char *name)
 {
-    ERROR(1, "usage : %s [-r <delay> (default : %u)]\n", name, delay)
+    ERROR(1, "usage : %s [-r <delay> (default : %u)]\n", basename(name), delay)
 }
 
 static void *
@@ -145,7 +145,8 @@ get_batteries(size_t *size)
 
         while ((ent = readdir(dir)))
             if (strncmp(ent->d_name, "BAT", 3 * sizeof(*ent->d_name)) == 0) {
-                strncpy(batteries[assigned].name, ent->d_name, NAME_MAX + 1);
+                if (snprintf(batteries[assigned].name, NAME_MAX, "%s", ent->d_name) < 0)
+                    ERROR(1, "error : failed to store battery name '%s'\n", ent->d_name)
 
                 build_path(batteries[assigned].capacity_path, PATH, ent->d_name, "capacity", PATH_MAX);
                 build_path(  batteries[assigned].status_path, PATH, ent->d_name,   "status", PATH_MAX);
@@ -193,8 +194,6 @@ subscribe(struct battery *batteries, size_t size)
 int
 main(int argc, char **argv)
 {
-    const char *name = basename(argv[0]);
-
     {
         int arg;
 
@@ -204,12 +203,12 @@ main(int argc, char **argv)
                     delay = convert(optarg);
                     break;
                 default:
-                    usage(name);
+                    usage(argv[0]);
             }
     }
 
     if (optind < argc)
-        usage(name);
+        usage(argv[0]);
 
     size_t size;
     struct battery *batteries;

@@ -19,7 +19,7 @@ static char format[LINE_MAX] = "%A %R";
 }
 
 static noreturn void
-usage(const char *name)
+usage(char *name)
 {
     ERROR(
         1,
@@ -28,7 +28,7 @@ usage(const char *name)
         "options :\n"
         "    -f <string>    set format string to <string> (default : %s)\n"
         "    -r <number>    set delay between refreshes to <number> (default : %u)\n",
-        name,
+        basename(name),
         format,
         delay)
 }
@@ -79,8 +79,6 @@ subscribe(void)
 int
 main(int argc, char **argv)
 {
-    const char *name = basename(argv[0]);
-
     {
         int arg;
 
@@ -88,17 +86,20 @@ main(int argc, char **argv)
             switch (arg) {
                 case 'f':
                     delay = convert_to_number(optarg);
+
                     break;
                 case 'r':
-                    strncpy(format, optarg, LINE_MAX - 1);
+                    if (snprintf(format, LINE_MAX, "%s", optarg) < 0)
+                        ERROR(1, "error : failed to store format string\n")
+
                     break;
                 default :
-                    usage(name);
+                    usage(argv[0]);
             }
     }
 
     if (optind < argc)
-        usage(name);
+        usage(argv[0]);
 
     subscribe();
 }
