@@ -10,7 +10,7 @@
 #include <unistd.h>
 
 static unsigned delay = 5;
-static char format[LINE_MAX] = "%A %R";
+static char *format = "%A %R";
 
 #define ERROR(code, ...) {        \
     fprintf(stderr, __VA_ARGS__); \
@@ -89,8 +89,7 @@ main(int argc, char **argv)
 
                     break;
                 case 'r':
-                    if (snprintf(format, LINE_MAX, "%s", optarg) < 0)
-                        ERROR(1, "error : failed to store format string\n")
+                    format = optarg;
 
                     break;
                 default :
