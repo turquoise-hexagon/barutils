@@ -1,5 +1,6 @@
 #include <dirent.h>
 #include <errno.h>
+#include <errno.h>
 #include <libgen.h>
 #include <limits.h>
 #include <stdbool.h>
@@ -9,185 +10,162 @@
 #include <string.h>
 #include <unistd.h>
 
-static unsigned delay = 5;
+static unsigned DELAY = 5;
 
-static const char PATH[PATH_MAX] = "/sys/class/power_supply";
+static const char PATH[] = "/sys/class/power_supply";
 
-#define OUTPUT_MAX 128
-
-#define ERROR(code, ...) {        \
+#define ERROR(status, ...) {      \
     fprintf(stderr, __VA_ARGS__); \
                                   \
-    exit(code);                   \
+    exit(status);                 \
 }
 
 struct battery {
     char name[NAME_MAX];
 
-    char capacity_path[PATH_MAX];
-    char   status_path[PATH_MAX];
+    char charge_path[PATH_MAX];
+    char status_path[PATH_MAX];
 
     bool flag;
-    char output[2][OUTPUT_MAX];
+
+    char output[2][LINE_MAX];
 };
 
 static noreturn void
 usage(char *name)
 {
-    ERROR(1, "usage : %s [-r <delay> (default : %u)]\n", basename(name), delay)
-}
-
-static void *
-allocate(size_t size)
-{
-    void *ptr;
-
-    if (! (ptr = calloc(1, size)))
-        ERROR(1, "error : failed to allocate '%lu' bytes of memory\n", size)
-
-    return ptr;
-}
-
-static void *
-reallocate(void *old, size_t size)
-{
-    void *new;
-
-    if (! (new = realloc(old, size)))
-        ERROR(1, "error : failed to allocate '%lu' bytes of memory\n", size)
-
-    return new;
+    ERROR(1, "usage : %s [-r <delay> (default : %u)]\n", basename(name), DELAY);
 }
 
 static unsigned
-convert(const char *str)
+_strtou(const char *str)
 {
     errno = 0;
-    long num;
+    long tmp;
 
     {
         char *ptr;
 
-        if ((num = strtol(str, &ptr, 10)) < 0 || *ptr != 0 || errno != 0)
-            ERROR(1, "error : '%s' isn't a valid delay\n", str)
+        /* accept only valid unsigned integers */
+        if ((tmp = strtol(str, &ptr, 10)) < 0 || errno != 0 || *ptr != 0)
+            return 0;
     }
 
-    return (unsigned)num;
+    return (unsigned)tmp;
 }
 
-static DIR *
-open_dir(const char *path)
+static char *
+_strncpy(char *dest, const char *src, size_t size)
 {
-    DIR *dir;
+    int tmp;
 
-    if (! (dir = opendir(path)))
-        ERROR(1, "error : failed to open '%s'\n", path)
+    /* expensive but reliable */
+    if ((tmp = snprintf(dest, size, "%s", src)) < 0)
+        return NULL;
 
-    return dir;
+    return dest;
 }
 
-static FILE *
-open_file(const char *path, const char *mode)
-{
-    FILE *file;
-
-    if (! (file = fopen(path, mode)))
-        ERROR(1, "error : failed to open '%s'\n", path)
-
-    return file;
-}
-
-static void
-close_file(const char *path, FILE *file)
-{
-    if (fclose(file) != 0)
-        ERROR(1, "error : failed to close '%s'\n", path)
-}
-
-static void
-build_path(char *dest, const char *path, const char *dir, const char *file, size_t size)
-{
-    if (snprintf(dest, size, "%s/%s/%s", path, dir, file) < 0)
-        ERROR(1, "error : failed to build path to '%s/%s/%s'\n", path, dir, file)
-}
-
-static void
-get_content(const char *path, char *dest, size_t size)
+static char *
+copy_file_content(char *dest, const char *path, size_t size)
 {
     FILE *file;
 
-    file = open_file(path, "r");
+    if (!(file = fopen(path, "r")))
+        return NULL;
 
-    if (! fgets(dest, (int)size, file))
-        ERROR(1, "error : failed to get content from '%s'\n", path)
+    if (!(fgets(dest, (int)size, file)))
+        return NULL;
 
     /* fix string */
     dest[strnlen(dest, size) - 1] = 0;
 
-    close_file(path, file);
+    return dest;
 }
 
 static struct battery *
-get_batteries(size_t *size)
+get_batteries(const char *path, size_t *size)
 {
-    static struct battery *batteries;
+    static struct battery *bt;
 
     {
-        size_t allocated = 2;
-        size_t  assigned = 0;
+        size_t alloc  = 2;
+        size_t assign = 0;
 
-        batteries = allocate(allocated * sizeof(*batteries));
+        if (!(bt = malloc(alloc * sizeof(*bt))))
+            ERROR(1, "error : failed to allocate '%lu' bytes of memory",
+                alloc * sizeof(*bt));
 
         DIR *dir;
         struct dirent *ent;
 
-        dir = open_dir(PATH);
+        if (!(dir = opendir(path)))
+            ERROR(1, "error : failed to open '%s'\n", path);
 
         while ((ent = readdir(dir)))
             if (strncmp(ent->d_name, "BAT", 3 * sizeof(*ent->d_name)) == 0) {
-                if (snprintf(batteries[assigned].name, NAME_MAX, "%s", ent->d_name) < 0)
-                    ERROR(1, "error : failed to store battery name '%s'\n", ent->d_name)
+                bt[assign].flag = 0;
 
-                build_path(batteries[assigned].capacity_path, PATH, ent->d_name, "capacity", PATH_MAX);
-                build_path(  batteries[assigned].status_path, PATH, ent->d_name,   "status", PATH_MAX);
+                if (!_strncpy(bt[assign].name, ent->d_name, sizeof(bt[assign].name)))
+                    ERROR(1, "error : failed to get list of batteries\n");
 
-                batteries[assigned].flag = 0;
+                int tmp;
 
-                /* reallocate memory if necessary */
-                if (++assigned == allocated)
-                    batteries = reallocate(batteries, (allocated = allocated * 3 / 2) * sizeof(*batteries));
+                if ((tmp = snprintf(bt[assign].charge_path, sizeof(bt[assign].charge_path),
+                    "%s/%s/capacity", path, ent->d_name)) < 0)
+                    ERROR(1, "error : failed to get list of batteries\n");
+
+                if ((tmp = snprintf(bt[assign].status_path, sizeof(bt[assign].status_path),
+                    "%s/%s/status",   path, ent->d_name)) < 0)
+                    ERROR(1, "error : failed to get list of batteries\n");
+
+                /* resize buffer if necessary */
+                if (++assign == alloc)
+                    if (!(bt = realloc(bt, (alloc = alloc * 3 / 2) * sizeof(*bt))))
+                        ERROR(1, "error : failed to allocate '%lu' bytes of memory\n",
+                            alloc * sizeof(*bt));
             }
 
-        *size = assigned;
+        *size = assign;
     }
 
-    return batteries;
+    return bt;
 }
 
 static noreturn void
-subscribe(struct battery *batteries, size_t size)
+subscribe_batteries(struct battery *bt, size_t size)
 {
-    char   status[OUTPUT_MAX] = {0};
-    char capacity[OUTPUT_MAX] = {0};
+
+    char charge[LINE_MAX] = {0};
+    char status[LINE_MAX] = {0};
 
     for (;;) {
         for (size_t i = 0; i < size; ++i) {
-            get_content(batteries[i].capacity_path, capacity, OUTPUT_MAX);
-            get_content(  batteries[i].status_path,   status, OUTPUT_MAX);
+            struct battery *cur = &bt[i];
 
-            if (snprintf(batteries[i].output[batteries[i].flag], OUTPUT_MAX, "%s %s", status, capacity) < 0)
-                ERROR(1, "error : failed to build output\n")
+            bool flag = cur->flag;
 
-            /* only output if content has changed */
-            if (strncmp(batteries[i].output[batteries[i].flag],
-                batteries[i].output[! batteries[i].flag], OUTPUT_MAX) != 0) {
-                printf("%s %s\n", batteries[i].name, batteries[i].output[batteries[i].flag]);
-                batteries[i].flag ^= 1;
+            if (!(copy_file_content(charge, cur->charge_path, sizeof(charge))))
+                ERROR(1, "error : failed to get content from '%s'\n", cur->charge_path);
+
+            if (!(copy_file_content(status, cur->status_path, sizeof(status))))
+                ERROR(1, "error : failed to get content from '%s'\n", cur->status_path);
+
+            int tmp;
+
+            if ((tmp = snprintf(cur->output[flag], sizeof(cur->output[flag]),
+                "%s %s %s", cur->name, status, charge)) < 0)
+                ERROR(1, "error : failed to format output\n");
+
+            /* print only if output buffer has changed */
+            if (strncmp(cur->output[!flag], cur->output[flag], sizeof(cur->output[!flag])) != 0) {
+                puts(cur->output[flag]);
                 fflush(stdout);
+                cur->flag ^= 1;
             }
         }
-
-        sleep(delay);
+        
+        sleep(DELAY);
     }
 }
 
@@ -200,19 +178,26 @@ main(int argc, char **argv)
         while ((arg = getopt(argc, argv, ":r:")) != -1)
             switch (arg) {
                 case 'r':
-                    delay = convert(optarg);
+                    errno = 0;
+
+                    DELAY = _strtou(optarg);
+
+                    if (errno != 0)
+                        ERROR(1, "error : '%s' invalid parameter\n", optarg);
+
                     break;
-                default:
+                default :
                     usage(argv[0]);
             }
     }
 
+    /* handle mismatched parameters */
     if (optind < argc)
         usage(argv[0]);
 
     size_t size;
-    struct battery *batteries;
+    struct battery *bt;
 
-    batteries = get_batteries(&size);
-    subscribe(batteries, size);
+    bt = get_batteries(PATH, &size);
+    subscribe_batteries(bt, size);
 }

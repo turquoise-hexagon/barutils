@@ -9,13 +9,13 @@
 #include <time.h>
 #include <unistd.h>
 
-static unsigned delay = 5;
-static char *format = "%A %R";
+static unsigned DELAY = 5;
+static char *FORMAT = "%A %R";
 
-#define ERROR(code, ...) {        \
+#define ERROR(status, ...) {      \
     fprintf(stderr, __VA_ARGS__); \
                                   \
-    exit(code);                   \
+    exit(status);                 \
 }
 
 static noreturn void
@@ -23,56 +23,56 @@ usage(char *name)
 {
     ERROR(
         1,
-        "usage : %s [-f <string>] [-r <number>]\n"
+        "usage : %s [-r <delay>] [-f <format>]\n"
         "\n"
         "options :\n"
-        "    -f <string>    set format string to <string> (default : %s)\n"
-        "    -r <number>    set delay between refreshes to <number> (default : %u)\n",
-        basename(name),
-        format,
-        delay)
+        "    -r <delay>     set delay between refreshes to <delay> (default : %u)\n"
+        "    -f <format>    set time format string to <format> (default : %s)\n",
+        basename(name), DELAY, FORMAT);
 }
 
 static unsigned
-convert_to_number(const char *str)
+_strtou(const char *str)
 {
     errno = 0;
-    long num;
+    long tmp;
 
     {
         char *ptr;
 
-        if ((num = strtol(str, &ptr, 10)) < 0 || errno != 0 || *ptr != 0)
-            ERROR(1, "error : '%s' isn't a valid delay\n", str)
+        /* accept only valid unsigned integers */
+        if ((tmp = strtol(str, &ptr, 10)) < 0 || errno != 0 || *ptr != 0)
+            return 0;
     }
 
-    return (unsigned)num;
+    return (unsigned)tmp;
 }
 
 static noreturn void
-subscribe(void)
+subscribe_clock(const char *format)
 {
     bool flag = 0;
-    char output[2][1024] = {{0}};
+
+    char output[2][LINE_MAX] = {0};
 
     for (;;) {
         time_t time_value;
-        struct tm *time_struct;
+        struct tm time_struct;
 
         time_value = time(0);
-        time_struct = localtime(&time_value);
+        localtime_r(&time_value, &time_struct);
 
-        if (! strftime(output[flag], 1024, format, time_struct))
-            ERROR(1, "error : failed to format current time\n")
+        if (!(strftime(output[flag], sizeof(*output), format, &time_struct)))
+            ERROR(1, "error : failed to format current time\n");
 
-        /* only output if content has changed */
-        if (strncmp(output[flag], output[!flag], 1024)) {
+        /* print only if output buffer has changed */
+        if (strncmp(output[!flag], output[flag], sizeof(*output)) != 0) {
             puts(output[flag]);
             fflush(stdout);
             flag ^= 1;
         }
 
-        sleep(delay);
+        sleep(DELAY);
     }
 }
 
@@ -82,23 +82,27 @@ main(int argc, char **argv)
     {
         int arg;
 
-        while ((arg = getopt(argc, argv, ":f:r:")) != -1)
+        while ((arg = getopt(argc, argv, ":r:f:")) != -1)
             switch (arg) {
-                case 'f':
-                    delay = convert_to_number(optarg);
+                case 'r':
+                    errno = 0;
+                    DELAY = _strtou(optarg);
+
+                    if (errno != 0)
+                        ERROR(1, "error : '%s' invalid parameter\n", optarg);
 
                     break;
-                case 'r':
-                    format = optarg;
-
+                case 'f':
+                    FORMAT = optarg;
                     break;
                 default :
                     usage(argv[0]);
             }
     }
 
+    /* handle mismatched parameters */
     if (optind < argc)
         usage(argv[0]);
 
-    subscribe();
+    subscribe_clock(FORMAT);
 }
