@@ -67,7 +67,7 @@ _strncpy(char *dest, const char *src, size_t size)
 }
 
 static char *
-copy_file_content(char *dest, const char *path, size_t size)
+get_value_from_file(char *dest, const char *path, size_t size)
 {
     FILE *file;
 
@@ -109,14 +109,12 @@ get_batteries(const char *path, size_t *size)
                 if (!_strncpy(bt[assign].name, ent->d_name, sizeof(bt[assign].name)))
                     ERROR(1, "error : failed to get list of batteries\n");
 
-                int tmp;
-
-                if ((tmp = snprintf(bt[assign].charge_path, sizeof(bt[assign].charge_path),
-                    "%s/%s/capacity", path, ent->d_name)) < 0)
+                if (snprintf(bt[assign].charge_path, sizeof(bt[assign].charge_path),
+                    "%s/%s/capacity", path, ent->d_name) < 0)
                     ERROR(1, "error : failed to get list of batteries\n");
 
-                if ((tmp = snprintf(bt[assign].status_path, sizeof(bt[assign].status_path),
-                    "%s/%s/status",   path, ent->d_name)) < 0)
+                if (snprintf(bt[assign].status_path, sizeof(bt[assign].status_path),
+                    "%s/%s/status",   path, ent->d_name) < 0)
                     ERROR(1, "error : failed to get list of batteries\n");
 
                 /* resize buffer if necessary */
@@ -145,16 +143,14 @@ subscribe_batteries(struct battery *bt, size_t size)
 
             bool flag = cur->flag;
 
-            if (!(copy_file_content(charge, cur->charge_path, sizeof(charge))))
+            if (!(get_value_from_file(charge, cur->charge_path, sizeof(charge))))
                 ERROR(1, "error : failed to get content from '%s'\n", cur->charge_path);
 
-            if (!(copy_file_content(status, cur->status_path, sizeof(status))))
+            if (!(get_value_from_file(status, cur->status_path, sizeof(status))))
                 ERROR(1, "error : failed to get content from '%s'\n", cur->status_path);
 
-            int tmp;
-
-            if ((tmp = snprintf(cur->output[flag], sizeof(cur->output[flag]),
-                "%s %s %s", cur->name, status, charge)) < 0)
+            if (snprintf(cur->output[flag], sizeof(cur->output[flag]),
+                "%s %s %s", cur->name, status, charge) < 0)
                 ERROR(1, "error : failed to format output\n");
 
             /* print only if output buffer has changed */
