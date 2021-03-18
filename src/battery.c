@@ -104,16 +104,20 @@ get_batteries(const char *path, size_t *size)
 
         while ((ent = readdir(dir)))
             if (strncmp(ent->d_name, "BAT", 3 * sizeof(*ent->d_name)) == 0) {
-                bt[assign].flag = 0;
+                struct battery *tmp = &bt[assign];
 
-                if (!_strncpy(bt[assign].name, ent->d_name, sizeof(bt[assign].name)))
+                tmp->flag = 0;
+                memset(tmp->output[0], 0, sizeof(tmp->output[0]));
+                memset(tmp->output[1], 0, sizeof(tmp->output[1]));
+
+                if (!_strncpy(tmp->name, ent->d_name, sizeof(tmp->name)))
                     ERROR(1, "error : failed to get list of batteries\n");
 
-                if (snprintf(bt[assign].charge_path, sizeof(bt[assign].charge_path),
+                if (snprintf(tmp->charge_path, sizeof(tmp->charge_path),
                     "%s/%s/capacity", path, ent->d_name) < 0)
                     ERROR(1, "error : failed to get list of batteries\n");
 
-                if (snprintf(bt[assign].status_path, sizeof(bt[assign].status_path),
+                if (snprintf(tmp->status_path, sizeof(tmp->status_path),
                     "%s/%s/status",   path, ent->d_name) < 0)
                     ERROR(1, "error : failed to get list of batteries\n");
 
