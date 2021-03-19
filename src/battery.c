@@ -74,7 +74,7 @@ get_value_from_file(char *dest, const char *path, size_t size)
     if (!(file = fopen(path, "r")))
         return NULL;
 
-    if (!(fgets(dest, (int)size, file)))
+    if (!fgets(dest, (int)size, file))
         return NULL;
 
     /* fix string */
@@ -103,7 +103,7 @@ get_batteries(const char *path, size_t *size)
             ERROR(1, "error : failed to open '%s'\n", path);
 
         while ((ent = readdir(dir)))
-            if (strncmp(ent->d_name, "BAT", 3 * sizeof(*ent->d_name)) == 0) {
+            if (strncmp(ent->d_name, "BAT", 3) == 0) {
                 struct battery *tmp = &bt[assign];
 
                 tmp->flag = 0;
@@ -147,10 +147,10 @@ subscribe_batteries(struct battery *bt, size_t size)
 
             bool flag = cur->flag;
 
-            if (!(get_value_from_file(charge, cur->charge_path, sizeof(charge))))
+            if (!get_value_from_file(charge, cur->charge_path, sizeof(charge)))
                 ERROR(1, "error : failed to get content from '%s'\n", cur->charge_path);
 
-            if (!(get_value_from_file(status, cur->status_path, sizeof(status))))
+            if (!get_value_from_file(status, cur->status_path, sizeof(status)))
                 ERROR(1, "error : failed to get content from '%s'\n", cur->status_path);
 
             if (snprintf(cur->output[flag], sizeof(cur->output[flag]),
