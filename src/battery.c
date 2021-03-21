@@ -77,6 +77,9 @@ get_value_from_file(char *dest, const char *path, size_t size)
     if (!fgets(dest, (int)size, file))
         return NULL;
 
+    if (fclose(file))
+        return NULL;
+
     /* fix string */
     dest[strnlen(dest, size) - 1] = 0;
 
@@ -179,7 +182,6 @@ main(int argc, char **argv)
             switch (arg) {
                 case 'r':
                     errno = 0;
-
                     DELAY = _strtou(optarg);
 
                     if (errno != 0)
