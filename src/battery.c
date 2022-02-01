@@ -157,7 +157,7 @@ subscribe_batteries(struct battery *bt, size_t size)
                 ERROR(1, "error : failed to get content from '%s'\n", cur->status_path);
 
             if (snprintf(cur->output[flag], sizeof(cur->output[flag]),
-                "%s %s %s", cur->name, status, charge) < 0)
+                "%s %s %s", cur->name, charge, status) < 0)
                 ERROR(1, "error : failed to format output\n");
 
             /* print only if output buffer has changed */
