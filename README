@@ -1,11 +1,11 @@
 barutils
 ========
-    small programs to use with lemonbar
+    small utilities for lemonbar
 
 usage
 -----
     $ make
-    $ bin/$program
+    $ ./$program
 
 depends on
 ----------

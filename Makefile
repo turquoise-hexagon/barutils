@@ -1,30 +1,27 @@
-CC     ?= gcc
-CFLAGS += -pedantic -Wall -Wextra
+CC ?= gcc
 
-BIN = $(shell printf '%s\n' src/*.c | sed 's|^src|bin|g;s|\.c$$||g')
+CFLAGS  += -pedantic -Wall -Wextra
+LDFLAGS +=
 
 PREFIX ?= $(DESTDIR)/usr
-BINDIR  = $(PREFIX)/bin
+BINDIR  =  $(PREFIX)/bin
 
-all : $(BIN) $(MAN)
+SRC = $(wildcard *.c)
+BIN = $(basename $(SRC))
 
-bin/% : src/%.c
-	@mkdir -p bin
-	$(CC) $(CFLAGS) $< -o $@
+all : CFLAGS += -O3 -march=native
+all : $(BIN)
+
+debug : CFLAGS += -O3 -g
+debug : $(BIN)
 
 clean :
-	rm -rf bin
+	rm -f $(BIN)
 
 install : all
-	install -Dm755 bin/* -t $(BINDIR)
+	install -Dm755 $(BIN) -t $(BINDIR)
 
 uninstall :
-	@echo "uninstalling binaries..."
-	@for src in src/*.c; do \
-		src=$${src%.c}; \
-		src=$${src##*/}; \
-		rm -f $(BINDIR)/"$$src"; \
-	done
-	
+	rm -f $(addprefix $(BINDIR)/,$(BIN))
 
-.PHONY: all clean install uninstall
+.PHONY : all debug clean install uninstall
